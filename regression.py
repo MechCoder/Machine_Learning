@@ -8,6 +8,7 @@ variable, for given independent variables.
 Methods currently implemented:
 1. Linear Regression. (Both binomial and multinomial)
 2. Locally Weighted Regression.
+3. Logistic Regression. (Binary)
 Tested with the example datasets given in Andrew Ng's Stanford Class.
 """
 
@@ -143,5 +144,49 @@ class LWR(LinearRegression):
         weights = np.exp(-np.sum(temp**2, axis=1)/(2*self.tau**2))
         for i in xrange(self.iterations):
              hypothesis = np.dot(self.new_input, theta_init)
-             theta_init = theta_init - self.alpha*(np.dot((weights*(hypothesis - self.output_data)).T, self.new_input))
+             theta_init = theta_init - self.alpha*(np.dot((weights*(hypothesis -
+                self.output_data)).T, self.new_input))
         return np.dot(theta_init.T, predict_input)
+
+
+class LogisticRegression(LinearRegression):
+    r"""
+    Logistic regression, is used in the case of classifictaion algorithms. The hypothesis
+    function is the sigmoid function which varies from 0 - 1
+    """
+    def __init__(self, input_data, output_data, alpha=0.01,
+        iterations=100):
+        super(LogisticRegression, self).__init__(input_data,
+            output_data, alpha=alpha,
+            iterations=iterations)
+
+    def fit_batch_grad(self):
+        raise ValueError("Logistic Regression "
+            "does not use batch gradient algorithm")
+
+    def stochastic_batch_grad(self):
+        theta_init = np.zeros(self.n_features)
+        for i in xrange(self.iterations):
+            for j in xrange(self.n_samples):
+                # Update theta for each training example.
+                # Calculate (hypothesis - y) for each example and multiply it by the input data.
+                temp = self.input_data[j]
+                thetax = np.dot(temp, theta_init.T)
+                sigmoid = 1/(1 + np.exp(-thetax))
+                theta_init = theta_init + self.alpha*(self.output_data[j]
+                    - sigmoid)*(self.input_data[j])
+
+    def predict(self, predict_input):
+        r"""
+        Function used to predict the given output.
+        """
+        shape = predict_input.shape
+        if len(shape) != 1 or shape[0] != self.n_features - 1:
+            raise ValueError("The array for which output needs "
+                "to be predicted should have same number "
+                "of features as input array")
+        sigmoid_val = 1/(1 + np.exp(np.dot(np.insert((predict_input -
+            self.mean)/self.std, 0, 1), self.theta)))
+        if sigmoid_val >= 0.5:
+            return 1
+        return 0
