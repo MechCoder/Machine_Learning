@@ -1,3 +1,6 @@
+# TODO: There definitely seems to be wrong in the implementation. If you do know
+# please let me know.
+
 r"""
 Implementation a few generative algorithms as given in Andrew Ng's
 Stanford class.
@@ -15,6 +18,13 @@ class GaussianDiscriminant(object):
         r"""
         Input data and output data should be in the form of numpy
         arrays and preprocessing.
+        Three parameters have to be estimated.
+        1] P(x | y = 0) which follows a multivariate normal distribution with mean u0 and
+            covariance sigma
+        2] P(x | y = 1) which follows a multivariate normal distribution with mean u1 and
+            covariance sigma
+        3] Covariance matrix of the distribution.
+        4] P(y) which is assumed to follow a Bernoulli distribution with p.
         """
         self.inputdata = inputdata
         self.outputdata = outputdata
@@ -39,47 +49,53 @@ class GaussianDiscriminant(object):
             else:
                 self.classes[str(label)].append(index)
 
-    def params(self):
+        # Modelling y
+        self.label1, self.label2 = sorted(self.classes.keys())
+        self.p = len(self.classes[self.label1])/float(self.examples)
+
+        # Modelling mean0 and mean1
+        x_label1 = self.normalized[self.classes[self.label1]]
+        x_label2 = self.normalized[self.classes[self.label2]]
+        self.mean1 = np.mean(x_label1, axis=0)
+        self.mean2 = np.mean(x_label2, axis=0)
+
+        # Modelling covariance
+        var1 = np.dot((x_label1 - self.mean1).T, (x_label1 - self.mean1))
+        var2 = np.dot((x_label2 - self.mean2).T, (x_label2 - self.mean2))
+        self.covariance = np.matrix((var1 + var2)/self.examples)
+        print self.covariance
+
+    def get_params(self):
+        if not hasattr(self, "covariance"):
+            raise ValueError("GaussianDiscriminant has to be trained")
+
+        return self.p, self.mean1, self.mean2, self.covariance
+
+    def predict(self, x):
         r"""
-        Three parameters have to be estimated.
-        1] P(x | y = 0) which follows a multivariate normal distribution with mean u0 and 
-            covariance sigma
-        2] P(x | y = 1) which follows a multivariate normal distribution with mean u1 and 
-            covariance sigma
+        Outputs the label or array of labels for the input that needs to
+        be predicted.
         """
-        classes = self.classes.keys()
-        mean_param = []
-        input_values = []   # For storing the input values.
+        if not hasattr(self, "covariance"):
+            raise ValueError("GaussianDiscriminant has to be trained")
+        x = np.atleast_2d(x)
+        examples, features = x.shape
 
-        # Modelling the mean for predicting x given y = first label and y = second label.
-        for index_, class_ in enumerate(self.classes):
-            input_values.append(self.normalized[self.classes[class_]])
-            mean_param.append(np.mean(input_values[index_], axis=0))
-        self.mean_param0 = mean_param[0]
-        self.mean_param1 = mean_param[1]
+        p = self.p
+        covariance = self.covariance
+        mean1 = self.mean1
+        mean2 = self.mean2
+        labels = []
+        cov_inverse = covariance.I
 
-        # Modelling the covariance matrix.
-        covariance_matrix = np.zeros([self.features, self.features])
-        for index_, class_ in enumerate(input_values):
-            variance = input_values[index_] - mean_param[index_]
-            covariance_matrix += np.dot(variance.T, variance)
+        for ind, exam in enumerate(x):
+            temp1 = exam[ind] - mean1
+            temp2 = exam[ind] - mean2
+            model1 = math.exp(np.dot(np.dot(temp1.T, cov_inverse), temp1)*-0.5)*p
+            model2 = math.exp(np.dot(np.dot(temp2.T, cov_inverse), temp2)*-0.5)*(1-p)
+            if model1 > model2:
+                labels.append(int(float(self.label1)))
+            else:
+                labels.append(int(float(self.label2)))
 
-        self.covariance_matrix = np.matrix(covariance_matrix/self.examples)
-        return self.mean_param0, self.mean_param1, self.covariance_matrix
-
-    def predict(self, predict_value):
-        r"""
-        Find which has a higher probability, for both models and output that particular label.
-        """
-        predict_value = (predict_value - self.mean)/self.std
-        cov_inverse = self.covariance_matrix.I
-        mag = np.abs(np.linalg.det(cov_inverse))**0.5
-        common_coeff = 1/(mag*((2*math.pi)**(0.5*self.features)))
-
-        temp1 = predict_value - self.mean_param0
-        temp2 = predict_value - self.mean_param1
-        model1 = common_coeff*math.exp(-0.5*np.dot(np.dot(temp1.T, cov_inverse), temp1))
-        model2 = common_coeff*math.exp(-0.5*np.dot(np.dot(temp2.T, cov_inverse), temp2))
-        if model1 > model2:
-            return float(self.classes.keys()[0])
-        return float(self.classes.keys()[1])
+        return labels
