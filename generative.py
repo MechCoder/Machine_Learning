@@ -125,10 +125,10 @@ class BernoulliNB(object):
         if len(in_labels) != 2:
             raise ValueError("input is assumed to be discrete with "
                              "two values.")
-        outlabel_true = out_labels[0]
-        outlabel_false = out_labels[1]
-        inlabel_true = in_labels[0]
-        inlabel_false = in_labels[1]
+        outlabel_true = out_labels[1]
+        outlabel_false = out_labels[0]
+        inlabel_true = in_labels[1]
+        inlabel_false = in_labels[0]
         true_inarr = (indata == inlabel_true)
         true_outarr = (outdata == outlabel_true)
         false_outarr = ~true_outarr
@@ -138,9 +138,8 @@ class BernoulliNB(object):
         self.x_yisfalse = np.zeros([n_features])
         for i in xrange(n_features):
             ith_feature = true_inarr[:, i]
-            temp = (outdata[i] == outlabel_true)
-            self.x_yistrue[i] = sum(ith_feature & temp)/n_trueout
-            self.x_yisfalse[i] = sum(ith_feature & ~temp)/n_falseout
+            self.x_yistrue[i] = sum(ith_feature & true_outarr)/float(n_trueout)
+            self.x_yisfalse[i] = sum(ith_feature & false_outarr)/float(n_falseout)
         self.p = (n_trueout + 1)/(float(n_examples) + 2)  # Laplace smoothening.
         self.examples = n_examples
         self.features = n_features
@@ -149,11 +148,14 @@ class BernoulliNB(object):
     def predict(self, x):
         if not hasattr(self, 'examples'):
             raise ValueError("BernoulliNB has to be trained.")
-        x = np.atleast_2d(x)
-        if x.shape[0] != 1 or x.shape[1] != self.features:
-            raise ValueError("Enter valis input to test")
-        term1 = np.sum(x*self.x_yistrue)*self.p
-        term2 = np.sum(x*self.x_yisfalse)*(1 - self.p)
+        x = np.atleast_1d(x)
+        if len(x.shape) != 1 or x.shape[0] != self.features:
+            raise ValueError("Enter valid input to predict")
+        false_indices = np.where(x == 0)
+        self.x_yistrue[false_indices] -= 1
+        self.x_yisfalse[false_indices] -= 1
+        term1 = np.prod(self.x_yistrue)*self.p
+        term2 = np.prod(self.x_yisfalse)*(1 - self.p)
         label1 = (term1 + 1)/(term1 + term2 + 2)
         if label1 > 0.5:
             return self.outlabels[0]
