@@ -4,6 +4,8 @@
 r"""
 Implementation a few generative algorithms as given in Andrew Ng's
 Stanford class.
+1] Gaussian Discriminant Analysis.
+2] Naive Bayes \m/ (My most favourite till now)
 """
 
 import os
@@ -99,3 +101,60 @@ class GaussianDiscriminant(object):
                 labels.append(int(float(self.label2)))
 
         return labels
+
+
+class BernoulliNB(object):
+    r"""
+    Implementation of a single output, binary Naive Bayes classification.
+    The output data and input data are assumed to follow a Bernoulli
+    distribution, that is it can be either True or False.
+    Laplace smoothening is also implemented to take care of the rare case in
+    which all the output data used for training is zero, and all the values
+    of a particular feature vector is zero.
+    """
+    def train(self, indata, outdata):
+        shape = outdata.shape
+        if len(shape) != 1:
+            raise ValueError("Output Data should be one dimensional.")
+        n_examples, n_features = indata.shape
+        out_labels = np.unique(outdata)
+        if len(out_labels) != 2:
+            raise ValueError("y can have only two labels in a binary "
+                             "classification.")
+        in_labels = np.unique(indata)
+        if len(in_labels) != 2:
+            raise ValueError("input is assumed to be discrete with "
+                             "two values.")
+        outlabel_true = out_labels[0]
+        outlabel_false = out_labels[1]
+        inlabel_true = in_labels[0]
+        inlabel_false = in_labels[1]
+        true_inarr = (indata == inlabel_true)
+        true_outarr = (outdata == outlabel_true)
+        false_outarr = ~true_outarr
+        n_trueout = sum(true_outarr)
+        n_falseout = (n_examples - n_trueout)
+        self.x_yistrue = np.zeros([n_features])
+        self.x_yisfalse = np.zeros([n_features])
+        for i in xrange(n_features):
+            ith_feature = true_inarr[:, i]
+            temp = (outdata[i] == outlabel_true)
+            self.x_yistrue[i] = sum(ith_feature & temp)/n_trueout
+            self.x_yisfalse[i] = sum(ith_feature & ~temp)/n_falseout
+        self.p = (n_trueout + 1)/(float(n_examples) + 2)  # Laplace smoothening.
+        self.examples = n_examples
+        self.features = n_features
+        self.outlabels = out_labels
+
+    def predict(self, x):
+        if not hasattr(self, 'examples'):
+            raise ValueError("BernoulliNB has to be trained.")
+        x = np.atleast_2d(x)
+        if x.shape[0] != 1 or x.shape[1] != self.features:
+            raise ValueError("Enter valis input to test")
+        term1 = np.sum(x*self.x_yistrue)*self.p
+        term2 = np.sum(x*self.x_yisfalse)*(1 - self.p)
+        label1 = (term1 + 1)/(term1 + term2 + 2)
+        if label1 > 0.5:
+            return self.outlabels[0]
+        return self.outlabels[-1]
